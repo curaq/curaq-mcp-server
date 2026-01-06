@@ -155,6 +155,21 @@ pnpm run build
 pnpm run watch
 ```
 
+### リリース
+
+`main`ブランチにpushすると、GitHub Actionsが自動で以下を実行します：
+
+1. `package.json`のバージョンを確認
+2. 同じバージョンのリリースがなければ、GitHubリリースを作成
+3. npmに公開（OIDC Trusted Publishing）
+
+**リリース手順：**
+1. `package.json`のバージョンを上げる
+2. `main`にpush
+3. 自動でリリース&npm公開
+
+※ npmへの公開はOIDC Trusted Publishingを使用。npmjs.comでTrusted Publisherの設定が必要です。
+
 ---
 
 ## ライセンス
