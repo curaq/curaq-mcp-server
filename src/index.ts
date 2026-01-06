@@ -15,7 +15,7 @@ const CURAQ_MCP_TOKEN = process.env.CURAQ_MCP_TOKEN;
 if (!CURAQ_MCP_TOKEN) {
   console.error("Error: Missing required environment variable");
   console.error("Required: CURAQ_MCP_TOKEN");
-  console.error("\nPlease generate a token at: https://curaq.pages.dev/settings/mcp");
+  console.error("\nPlease generate a token at: https://curaq.pages.dev/settings/access-token");
   process.exit(1);
 }
 

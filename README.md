@@ -126,7 +126,7 @@ CuraQの未読記事をリストアップして
 ### 認証エラーが発生する
 
 - `CURAQ_MCP_TOKEN` が正しいか確認してください
-- トークンが削除されていないか、[CuraQ設定ページ](https://curaq.pages.dev/settings/mcp)で確認してください
+- トークンが削除されていないか、[CuraQ設定ページ](https://curaq.pages.dev/settings/access-token)で確認してください
 
 ### 記事が取得できない
 
