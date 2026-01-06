@@ -1,6 +1,6 @@
 {
   "name": "@curaq/mcp-server",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "MCP server for CuraQ - Access your curated articles from any MCP-compatible tool (Claude Desktop, Claude Code, Cursor, VSCode, etc.)",
   "type": "module",
   "bin": {
