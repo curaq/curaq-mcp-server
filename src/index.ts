@@ -143,7 +143,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const limit = Math.min((args?.limit as number) || 20, 50);
 
         const response = await fetch(
-          `${CURAQ_API_URL}/api/mcp/articles?limit=${limit}`,
+          `${CURAQ_API_URL}/api/v1/articles?limit=${limit}`,
           {
             headers: {
               Authorization: `Bearer ${CURAQ_MCP_TOKEN}`,
@@ -221,7 +221,7 @@ ${article.summary}
         }
 
         const response = await fetch(
-          `${CURAQ_API_URL}/api/mcp/articles/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+          `${CURAQ_API_URL}/api/v1/articles/search?q=${encodeURIComponent(query)}&limit=${limit}`,
           {
             headers: {
               Authorization: `Bearer ${CURAQ_MCP_TOKEN}`,
@@ -297,7 +297,7 @@ ${article.summary}
         }
 
         const response = await fetch(
-          `${CURAQ_API_URL}/api/mcp/articles/${articleId}`,
+          `${CURAQ_API_URL}/api/v1/articles/${articleId}`,
           {
             headers: {
               Authorization: `Bearer ${CURAQ_MCP_TOKEN}`,
@@ -381,7 +381,7 @@ ${events.map((e: any) => `- ${e.action} (${new Date(e.created_at).toLocaleString
         }
 
         const response = await fetch(
-          `${CURAQ_API_URL}/api/mcp/articles/${articleId}/read`,
+          `${CURAQ_API_URL}/api/v1/articles/${articleId}/read`,
           {
             method: "POST",
             headers: {
@@ -437,7 +437,7 @@ ${events.map((e: any) => `- ${e.action} (${new Date(e.created_at).toLocaleString
         }
 
         const response = await fetch(
-          `${CURAQ_API_URL}/api/mcp/articles/${articleId}`,
+          `${CURAQ_API_URL}/api/v1/articles/${articleId}`,
           {
             method: "DELETE",
             headers: {
