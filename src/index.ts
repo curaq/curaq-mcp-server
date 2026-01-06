@@ -54,13 +54,19 @@ const TOOLS: Tool[] = [
   {
     name: "search_articles",
     description:
-      "キーワードで記事を検索します。タイトル、要約、タグから部分一致で検索します。既読・未読の両方から検索します。",
+      "記事を検索します。キーワード検索またはAIセマンティック検索を選択できます。セマンティック検索は意味を理解して同義語や関連トピックも検出でき、自然言語の質問にも対応します。",
     inputSchema: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "検索キーワード",
+          description: "検索キーワードまたは検索クエリ（自然言語での質問も可）",
+        },
+        mode: {
+          type: "string",
+          enum: ["keyword", "semantic"],
+          description: "検索モード（keyword: キーワード検索、semantic: AIセマンティック検索）",
+          default: "semantic",
         },
         limit: {
           type: "number",
@@ -209,6 +215,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "search_articles": {
         const query = args?.query as string;
+        const mode = (args?.mode as string) || "semantic";
         const limit = Math.min((args?.limit as number) || 10, 30);
 
         if (!query) {
@@ -222,8 +229,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
+        // Select endpoint based on mode
+        const endpoint = mode === "semantic"
+          ? `${CURAQ_API_URL}/api/v1/articles/semantic-search`
+          : `${CURAQ_API_URL}/api/v1/articles/search`;
+
         const response = await fetch(
-          `${CURAQ_API_URL}/api/v1/articles/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+          `${endpoint}?q=${encodeURIComponent(query)}&limit=${limit}`,
           {
             headers: {
               Authorization: `Bearer ${CURAQ_MCP_TOKEN}`,
@@ -233,6 +245,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         if (!response.ok) {
           const error = await response.text();
+          if (response.status === 503 && mode === "semantic") {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `セマンティック検索は現在利用できません。キーワード検索をお試しください。`,
+                },
+              ],
+            };
+          }
           return {
             content: [
               {
@@ -251,7 +273,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             content: [
               {
                 type: "text",
-                text: `「${query}」に一致する記事が見つかりませんでした。`,
+                text: mode === "semantic"
+                  ? `「${query}」に関連する記事が見つかりませんでした。`
+                  : `「${query}」に一致する記事が見つかりませんでした。`,
               },
             ],
           };
@@ -264,11 +288,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     ID: ${article.id}`;
         });
 
+        const modeLabel = mode === "semantic" ? "セマンティック検索" : "キーワード検索";
+
         return {
           content: [
             {
               type: "text",
-              text: `検索結果：「${query}」（${searchResults.length}件）\n詳細が必要な場合は get_article で記事IDを指定してください。\n\n${resultsList.join("\n\n")}`,
+              text: `${modeLabel}結果：「${query}」（${searchResults.length}件）\n詳細が必要な場合は get_article で記事IDを指定してください。\n\n${resultsList.join("\n\n")}`,
             },
           ],
         };
