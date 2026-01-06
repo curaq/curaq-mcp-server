@@ -1,0 +1,31 @@
+{
+  "name": "@curaq/mcp-server",
+  "version": "0.3.0",
+  "description": "MCP server for CuraQ - Access your curated articles from any MCP-compatible tool (Claude Desktop, Claude Code, Cursor, VSCode, etc.)",
+  "type": "module",
+  "bin": {
+    "curaq-mcp": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "curaq",
+    "knowledge-base"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@supabase/supabase-js": "^2.89.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
