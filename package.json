@@ -2,6 +2,10 @@
   "name": "@curaq/mcp-server",
   "version": "0.3.1",
   "description": "MCP server for CuraQ - Access your curated articles from any MCP-compatible tool (Claude Desktop, Claude Code, Cursor, VSCode, etc.)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/curaq/curaq-mcp-server.git"
+  },
   "type": "module",
   "bin": {
     "curaq-mcp": "./build/index.js"
