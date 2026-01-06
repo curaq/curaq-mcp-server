@@ -163,7 +163,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const data = await response.json();
+        const data = await response.json() as { articles?: Article[] };
         const articles = data.articles || [];
 
         if (articles.length === 0) {
@@ -186,7 +186,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 **タグ**: ${article.tags.join(", ")}
 **コンテンツタイプ**: ${article.content_type}
 ${article.priority !== undefined ? `**優先度**: ${article.priority.toFixed(3)}` : ""}
-${article.created_at ? `**保存日**: ${new Date(article.created_at).toLocaleDateString("ja-JP")}` : ""}
+${article.created_at ? `**保存日**: ${article.created_at ? new Date(article.created_at).toLocaleDateString("ja-JP") : "不明"}` : ""}
 
 **要約**:
 ${article.summary}
@@ -241,7 +241,7 @@ ${article.summary}
           };
         }
 
-        const data = await response.json();
+        const data = await response.json() as { articles?: Article[] };
         const searchResults = data.articles || [];
 
         if (searchResults.length === 0) {
@@ -337,7 +337,7 @@ ${article.summary}
           };
         }
 
-        const data = await response.json();
+        const data = await response.json() as { article: Article; events?: { action: string; created_at: string }[] };
         const article = data.article;
         const events = data.events || [];
 
@@ -352,7 +352,7 @@ ${article.summary}
 **読了時間**: ${article.reading_time_minutes}分
 **タグ**: ${article.tags.join(", ")}
 **コンテンツタイプ**: ${article.content_type}
-**保存日**: ${new Date(article.created_at).toLocaleDateString("ja-JP")}
+**保存日**: ${article.created_at ? new Date(article.created_at).toLocaleDateString("ja-JP") : "不明"}
 
 **要約**:
 ${article.summary}
