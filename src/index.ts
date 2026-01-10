@@ -132,6 +132,39 @@ const TOOLS: Tool[] = [
       required: ["url"],
     },
   },
+  {
+    name: "get_discovery_queue",
+    description:
+      "現在のDiscovery候補キューを取得します。他のユーザーが保存している人気記事の中から、AIがあなたの興味に合わせて選んだ記事を確認できます。",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "generate_discovery",
+    description:
+      "新しいDiscovery候補を生成します。あなたの読書履歴に基づいてAIが他ユーザーの人気記事を選びます。週1回まで生成可能です。",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "dismiss_discovery_article",
+    description:
+      "Discovery候補から記事を「興味なし」として却下します。この記事は今後推薦されなくなります。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        item_id: {
+          type: "string",
+          description: "Discovery キューアイテムのID（UUID形式）",
+        },
+      },
+      required: ["item_id"],
+    },
+  },
 ];
 
 // Create MCP server
@@ -558,6 +591,233 @@ ${events.map((e: any) => `- ${e.action} (${new Date(e.created_at).toLocaleString
             {
               type: "text",
               text: `${message}\n\nURL: ${url}\n記事ID: ${data.articleId}`,
+            },
+          ],
+        };
+      }
+
+      case "get_discovery_queue": {
+        const response = await fetch(
+          `${CURAQ_API_URL}/api/v1/discovery`,
+          {
+            headers: {
+              Authorization: `Bearer ${CURAQ_MCP_TOKEN}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          const error = await response.text();
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー (${response.status}): ${error}`,
+              },
+            ],
+          };
+        }
+
+        const data = await response.json() as {
+          queue: Array<{
+            id: string;
+            article_id: string;
+            reason: string;
+            created_at: string;
+            articles: {
+              url: string;
+              title: string;
+              summary: string;
+              tags: string[];
+              reading_time_minutes: number;
+            };
+          }>;
+          canGenerate: boolean;
+          nextGenerationAt: string | null;
+          lastGeneratedAt: string | null;
+          limits: {
+            articleCount: number;
+            candidateLimit: number;
+          };
+        };
+
+        if (data.queue.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: data.canGenerate
+                  ? "Discovery候補がありません。generate_discovery ツールで新しい候補を生成できます。"
+                  : `Discovery候補がありません。次回生成は ${data.nextGenerationAt ? new Date(data.nextGenerationAt).toLocaleDateString("ja-JP") : "不明"} です。`,
+              },
+            ],
+          };
+        }
+
+        const queueList = data.queue.map((item, index) => {
+          return `[${index + 1}] ${item.articles.title} (${item.articles.reading_time_minutes}分)
+    ${item.articles.url}
+    理由: ${item.reason}
+    タグ: ${item.articles.tags.join(", ")}
+    ID: ${item.id}`;
+        });
+
+        let footer = "";
+        if (data.nextGenerationAt) {
+          const nextDate = new Date(data.nextGenerationAt);
+          const daysUntil = Math.ceil((nextDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          footer = `\n\n次回生成可能: ${nextDate.toLocaleDateString("ja-JP")} (${daysUntil}日後)`;
+        } else if (data.canGenerate) {
+          footer = "\n\ngenerate_discovery ツールで新しい候補を生成できます。";
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `【Discovery候補】（${data.queue.length}件）\n\n${queueList.join("\n\n")}${footer}`,
+            },
+          ],
+        };
+      }
+
+      case "generate_discovery": {
+        const response = await fetch(
+          `${CURAQ_API_URL}/api/v1/discovery/generate`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${CURAQ_MCP_TOKEN}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          const error = await response.text();
+
+          // 週1回制限
+          if (response.status === 429) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `エラー: ${error}`,
+                },
+              ],
+            };
+          }
+
+          // 候補なし
+          if (response.status === 404) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `エラー: ${error}`,
+                },
+              ],
+            };
+          }
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー (${response.status}): ${error}`,
+              },
+            ],
+          };
+        }
+
+        const data = await response.json() as {
+          generated: boolean;
+          count: number;
+          queue: Array<{
+            id: string;
+            article_id: string;
+            reason: string;
+            created_at: string;
+            articles: {
+              url: string;
+              title: string;
+              summary: string;
+              tags: string[];
+              reading_time_minutes: number;
+            };
+          }>;
+        };
+
+        const queueList = data.queue.map((item, index) => {
+          return `[${index + 1}] ${item.articles.title} (${item.articles.reading_time_minutes}分)
+    ${item.articles.url}
+    理由: ${item.reason}
+    タグ: ${item.articles.tags.join(", ")}
+    ID: ${item.id}`;
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `【Discovery生成完了】（${data.count}件の候補を追加しました）\n\n${queueList.join("\n\n")}`,
+            },
+          ],
+        };
+      }
+
+      case "dismiss_discovery_article": {
+        const itemId = args?.item_id as string;
+
+        if (!itemId) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "エラー: item_idを指定してください",
+              },
+            ],
+          };
+        }
+
+        const response = await fetch(
+          `${CURAQ_API_URL}/api/v1/discovery/${itemId}/dismiss`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${CURAQ_MCP_TOKEN}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          const error = await response.text();
+
+          if (response.status === 404) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "エラー: 指定されたDiscoveryアイテムが見つかりません",
+                },
+              ],
+            };
+          }
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: `エラー (${response.status}): ${error}`,
+              },
+            ],
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `記事を「興味なし」としてマークしました\n（ID: ${itemId}）`,
             },
           ],
         };
