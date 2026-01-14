@@ -165,6 +165,34 @@ const TOOLS: Tool[] = [
       required: ["item_id"],
     },
   },
+  {
+    name: "import_articles",
+    description:
+      "複数の記事をCuraQに一括でインポートします。URLリストを指定すると、各記事を順次保存します。既読/未読の選択、重複のスキップに対応しています。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        urls: {
+          type: "array",
+          items: {
+            type: "string",
+          },
+          description: "インポートする記事のURLリスト",
+        },
+        mark_as_read: {
+          type: "boolean",
+          description: "インポート後に記事を既読としてマークするか（デフォルト: false）",
+          default: false,
+        },
+        batch_size: {
+          type: "number",
+          description: "一度に処理するバッチサイズ（デフォルト: 10、最大: 20）",
+          default: 10,
+        },
+      },
+      required: ["urls"],
+    },
+  },
 ];
 
 // Create MCP server
@@ -818,6 +846,169 @@ ${events.map((e: any) => `- ${e.action} (${new Date(e.created_at).toLocaleString
             {
               type: "text",
               text: `記事を「興味なし」としてマークしました\n（ID: ${itemId}）`,
+            },
+          ],
+        };
+      }
+
+      case "import_articles": {
+        const urls = args?.urls as string[];
+        const markAsRead = (args?.mark_as_read as boolean) ?? false;
+        const batchSize = Math.min(Math.max((args?.batch_size as number) || 10, 1), 20);
+
+        if (!urls || !Array.isArray(urls) || urls.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "エラー: URLリストを指定してください",
+              },
+            ],
+          };
+        }
+
+        // Results tracking
+        const results: {
+          success: Array<{ url: string; articleId: string }>;
+          skipped: Array<{ url: string; reason: string }>;
+          failed: Array<{ url: string; error: string }>;
+        } = {
+          success: [],
+          skipped: [],
+          failed: [],
+        };
+
+        // Process URLs in batches
+        for (let i = 0; i < urls.length; i += batchSize) {
+          const batch = urls.slice(i, i + batchSize);
+          const batchNumber = Math.floor(i / batchSize) + 1;
+          const totalBatches = Math.ceil(urls.length / batchSize);
+
+          console.error(`Processing batch ${batchNumber}/${totalBatches} (${batch.length} URLs)...`);
+
+          for (const url of batch) {
+            try {
+              // Step 1: Save article
+              const saveResponse = await fetch(
+                `${CURAQ_API_URL}/api/v1/articles`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${CURAQ_MCP_TOKEN}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ url }),
+                }
+              );
+
+              if (!saveResponse.ok) {
+                const errorData = await saveResponse.json().catch(() => ({ error: "unknown" })) as { error?: string; message?: string };
+
+                // Handle "already-read" as skipped
+                if (saveResponse.status === 400 && errorData.error === "already-read") {
+                  results.skipped.push({
+                    url,
+                    reason: "既に読了済み",
+                  });
+                  continue;
+                }
+
+                // Other errors
+                let errorMessage = "記事の保存に失敗しました";
+                if (saveResponse.status === 400) {
+                  if (errorData.error === "unread-limit") {
+                    errorMessage = "未読記事が30件に達しています";
+                  } else if (errorData.error === "limit-reached") {
+                    errorMessage = "今月の記事保存上限に達しました";
+                  } else if (errorData.error === "invalid-content") {
+                    errorMessage = "このコンテンツは保存できません";
+                  }
+                }
+
+                results.failed.push({
+                  url,
+                  error: errorMessage,
+                });
+                continue;
+              }
+
+              const saveData = await saveResponse.json() as { success: boolean; message: string; articleId: string; restored?: boolean };
+
+              // If the article was already saved (not restored), treat as skipped
+              if (saveData.message === "記事は既に保存されています" && !saveData.restored) {
+                results.skipped.push({
+                  url,
+                  reason: "既に保存済み",
+                });
+                continue;
+              }
+
+              // Step 2: Mark as read if requested
+              if (markAsRead) {
+                const readResponse = await fetch(
+                  `${CURAQ_API_URL}/api/v1/articles/${saveData.articleId}/read`,
+                  {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${CURAQ_MCP_TOKEN}`,
+                    },
+                  }
+                );
+
+                if (!readResponse.ok) {
+                  // If marking as read fails, still count as success but note the issue
+                  results.success.push({
+                    url,
+                    articleId: saveData.articleId,
+                  });
+                  console.error(`Warning: Failed to mark article as read: ${url}`);
+                  continue;
+                }
+              }
+
+              results.success.push({
+                url,
+                articleId: saveData.articleId,
+              });
+            } catch (error) {
+              results.failed.push({
+                url,
+                error: error instanceof Error ? error.message : "不明なエラー",
+              });
+            }
+          }
+        }
+
+        // Format results summary
+        const totalCount = urls.length;
+        const successCount = results.success.length;
+        const skippedCount = results.skipped.length;
+        const failedCount = results.failed.length;
+
+        let summary = `インポート完了: 全${totalCount}件中\n`;
+        summary += `✓ 成功: ${successCount}件\n`;
+        summary += `⊘ スキップ（重複）: ${skippedCount}件\n`;
+        summary += `✗ 失敗: ${failedCount}件`;
+
+        if (results.failed.length > 0) {
+          summary += `\n\n【失敗した記事】\n`;
+          summary += results.failed
+            .map((item) => `- ${item.url}\n  理由: ${item.error}`)
+            .join("\n");
+        }
+
+        if (results.skipped.length > 0 && results.skipped.length <= 10) {
+          summary += `\n\n【スキップした記事】\n`;
+          summary += results.skipped
+            .map((item) => `- ${item.url}\n  理由: ${item.reason}`)
+            .join("\n");
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: summary,
             },
           ],
         };
