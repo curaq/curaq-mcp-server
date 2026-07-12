@@ -1,5 +1,11 @@
 # CuraQ MCP Server
 
+> [!IMPORTANT]
+> **このローカルMCPサーバーは非推奨（deprecated）となり、本リポジトリはアーカイブされました。**
+> 後継の**リモートMCP**（`https://curaq.app/api/v1/mcp`）をご利用ください。インストール不要で、より多くのツールが利用できます。
+> Claude Code / Claude Desktopの方は公式プラグイン（[curaq/claude-plugins](https://github.com/curaq/claude-plugins)）が最も簡単です。
+> 接続手順: https://curaq.app/settings/access-token
+
 CuraQに保存した記事をMCP対応ツール（Claude Desktop、Claude Code、Cursor、VSCodeなど）から検索・参照できるMCPサーバーです。
 
 ## インストール
